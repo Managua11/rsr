@@ -1,7 +1,7 @@
 # RSR — „რა სად როდის" აპლიკაცია
 
 **პროექტის გეგმა და მიღებული გადაწყვეტილებები**
-ბოლო განახლება: 2026-08-20 · მდებარეობა: `C:\Users\tmanagadze\Desktop\Personal\rsr`
+ბოლო განახლება: 2026-08-21 · მდებარეობა: `C:\Users\tmanagadze\Desktop\Personal\rsr`
 
 ---
 
@@ -9,7 +9,9 @@
 
 მობაილ აპლიკაცია „რა სად როდის" (ЧГК) სათამაშოდ — კითხვების საკუთარი კატალოგით, პაკეტების ავტორინგით და თამაშის რეჟიმებით.
 
-**მიმდინარე სტატუსი:** კოდი ჯერ არ დაწერილა. საქაღალდეში მხოლოდ ცარიელი IntelliJ მოდულია (`.idea`, `rsr.iml`, `.gitignore`, ცარიელი `src/`). git რეპოზიტორი ჯერ არ არის.
+**მიმდინარე სტატუსი (2026-08-20):** ბექენდი ბაზასთან **დაკავშირებულია და მუშაობს**. `backend/` — Spring Boot 4.1.0, Gradle Groovy DSL; Neon-ის ბაზა მიერთებულია, `V1__init.sql` გაშვებულია და სქემა Neon-ში დგას (11 ცხრილი + `flyway_schema_history`). `./gradlew test` (`contextLoads`) მწვანეა.
+
+ჯერ არ არსებობს: `SecurityConfig` (ე.ი. ყველა endpoint დაბლოკილია), `jjwt`, არცერთი entity / repository / controller. git რეპოზიტორი ინიციალიზებულია (`Initial commit`), მაგრამ `backend/` კვლავ untracked-ია.
 
 ---
 
@@ -18,14 +20,24 @@
 | ფენა | არჩევანი | რატომ |
 |---|---|---|
 | მობაილი | **Flutter** | ერთი კოდი ორივე პლატფორმაზე; აჯობა React Native-ს და Kotlin Multiplatform-ს |
-| ბექენდი | **Java 21 + Spring Boot 3.x** | Java უკვე დაყენებულია კომპიუტერზე |
-| ბილდი | **Gradle (Kotlin DSL) + wrapper** | wrapper ნიშნავს, რომ Gradle-ის ცალკე დაყენება არ სჭირდება |
+| ბექენდი | **Java 21 + Spring Boot 4.1.0** | Java უკვე დაყენებულია კომპიუტერზე; Boot 4 — გადაწყვეტილება 2026-08-20, იხ. §2.1 |
+| ბილდი | **Gradle (Groovy DSL) + wrapper 9.5.1** | wrapper ნიშნავს, რომ Gradle-ის ცალკე დაყენება არ სჭირდება |
 | ბაზა | **Neon** (managed cloud PostgreSQL) | ლოკალურად PostgreSQL-ის დაყენება არ გვინდა; Docker არ არის |
 | მიგრაციები | **Flyway** — პირველივე დღიდან | `ddl-auto: update` პროდაქშენში **არასოდეს** |
 | ავტორიზაცია | Spring Security + JWT (jjwt) | |
 | დოკუმენტაცია | springdoc-openapi (Swagger UI) | |
 
-**გარემო ამ კომპიუტერზე:** Java 21 ✅, Node 24 ✅, Docker ❌, Gradle/Maven CLI ❌, Flutter SDK ❌, PostgreSQL ❌
+**გარემო ამ კომპიუტერზე:** Java 21 ✅, Node 24 ✅, Docker ❌, Gradle/Maven CLI ❌ (wrapper გვაქვს), Flutter SDK ❌, PostgreSQL ❌
+
+### 2.1 რატომ Spring Boot 4, და არა 3.x
+
+Initializr-მა 4.1.0 დააგენერირა (გეგმაში 3.x ეწერა). **გადაწყვეტილება — ვრჩებით 4-ზე:** ახალი პროექტია, პროდაქშენში არაფერია, მიგრაცია მაინც მოგვიწევდა.
+
+რასაც ეს ნიშნავს პრაქტიკაში:
+
+- **starter-ების სახელები შეიცვალა.** `spring-boot-starter-web` → **`spring-boot-starter-webmvc`**; Flyway ცალკე starter-ია; ტესტებისთვის თითო მოდულს თავისი `-test` starter აქვს (`spring-boot-starter-data-jpa-test` და ა.შ.). **Boot 3-ის tutorial-ები პირდაპირ არ იმუშავებს** — ეს იქნება მთავარი ხახუნის წყარო.
+- **Spring Security 7** მოყვება — კონფიგურაციის DSL შეცვლილია, ძველი მაგალითები არ გამოდგება.
+- **მესამე მხარის ბიბლიოთეკები:** `jjwt` Spring-ზე დამოკიდებული არაა → იმუშავებს. `springdoc-openapi` კი Spring-ის შიგნეულობას ეყრდნობა — Boot 4-თან თავსებადი ვერსია ცალკე შესამოწმებელია. **თუ არ აეწყო, Swagger UI გადაიდოს** — ბლოკერი არაა.
 
 ---
 
@@ -112,40 +124,50 @@
 
 ---
 
-## 7. სად გავჩერდით — ბექენდის დაწყება
+## 7. სად ვართ — ბექენდი ბაზასთან დაკავშირებულია
 
-პროექტი **ჯერ არ შექმნილა**. შემდეგი ნაბიჯი:
+### 7.1 რა შეიქმნა (2026-08-20)
 
-### 7.1 IntelliJ-ში პროექტის შექმნა
-
-`File → New → Project → Spring Boot`:
+`backend/` საქაღალდე, Spring Initializr-ით IntelliJ-დან:
 
 ```
-Type:      Gradle - Kotlin DSL
-Language:  Java
-Java:      21
-Group:     ge.rsr        Artifact: rsr        Package: ge.rsr
-Dependencies:  Spring Web, Spring Data JPA, Validation,
-               Spring Security, PostgreSQL Driver, Flyway Migration,
-               Spring Boot Actuator
+rootProject.name = 'backend'      group = ge.rsr       Java 21 toolchain
+Spring Boot 4.1.0                 Gradle Groovy DSL, wrapper 9.5.1
+
+backend/src/main/java/ge/rsr/BackendApplication.java
+backend/src/main/resources/application.properties   (მხოლოდ spring.application.name)
+backend/src/test/java/ge/rsr/BackendApplicationTests.java
 ```
 
-> ⚠️ თუ ძველი `src/Main.java` კვლავ არსებობს — წაშალე. Spring Boot თავის `src/main/java/ge/rsr/`-ს შექმნის და ძველი ფაილი კომპილაციას გატეხავს. (2026-08-20-ის მდგომარეობით `src/` უკვე ცარიელია.)
+უკვე ჩაწერილი dependency-ები: `actuator`, `data-jpa`, `flyway`, `security`, `validation`, `webmvc`, `flyway-database-postgresql`, `postgresql` (runtimeOnly) + შესაბამისი `-test` starter-ები.
 
-### 7.2 ხელით დასამატებელი დამოკიდებულებები — `build.gradle.kts`
+> - `rootProject.name` არის **`backend`**, კლასი — `BackendApplication`. თუ `rsr` გვირჩევნია, გადარქმევა ახლა ყველაზე იაფია.
+> - ორი IntelliJ პროექტია ჩალაგებული — `rsr/.idea` და `rsr/backend/.idea`. Flutter-ის დამატებისას root-ად `rsr/` უნდა ვიყუროთ.
+> - root-ის `src/` ცარიელია — ძველი `Main.java` წაშლილია, პრობლემა აღარაა.
 
-```kotlin
+### 7.2 შემდეგი ნაბიჯები, რიგითობით
+
+1. ✅ **Neon-ის ბაზა** — მიერთებულია. კონფიგურაცია: `application.properties` (`spring.profiles.active=local`, `ddl-auto=validate`) + `application-local.properties` credentials-ით, gitignore-ში.
+2. **დამოკიდებულებების დამატება** — `jjwt` (იხ. 7.3); `springdoc` სურვილისამებრ, თუ Boot 4-თან აეწყო.
+3. ✅ **პირველი Flyway მიგრაცია** — `V1__init.sql` დაწერილია და **გაშვებულია**, იხ. §8. აქვე შევიდა `teams` / `team_members` და nullable `game_sessions.team_id`, თუმცა ეტაპი 1-ში ცარიელი რჩება.
+4. **პირველი vertical slice** — entity → repository → service → controller `questions`-ისთვის, რომ ჯაჭვი ბაზიდან HTTP-მდე გაიტესტოს.
+5. **git commit** — `backend/` ჯერ untracked-ია.
+
+### 7.3 ხელით დასამატებელი დამოკიდებულებები — `build.gradle` (Groovy სინტაქსი)
+
+```groovy
+    // JWT — მხოლოდ api-ა კოდში ხილული, დანარჩენი ორი runtime-ია.
+    // Spring-ზე დამოკიდებული არაა → Boot 4-ზე უპრობლემოდ მუშაობს.
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
     // Swagger UI — http://localhost:8080/swagger-ui.html
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
-
-    // JWT — მხოლოდ api-ა კოდში ხილული, დანარჩენი ორი runtime-ია
-    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
-
-    // Flyway-ს Postgres მოდული (Flyway 10+) — შეიძლება Initializr-მა უკვე დაამატა
-    runtimeOnly("org.flywaydb:flyway-database-postgresql")
+    // ⚠️ ვერსია Boot 4-თან თავსებადობაზე შესამოწმებელია (2.8.5 Boot 3-ისთვისაა).
+    // implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:<ვერსია>'
 ```
+
+> `flyway-database-postgresql` და `postgresql` დრაივერი Initializr-მა **უკვე დაამატა** — ხელით არ სჭირდება.
 
 **კონფიგურაციის სიტყვები:**
 
@@ -160,9 +182,9 @@ Dependencies:  Spring Web, Spring Data JPA, Validation,
 
 ვერსიების შემოწმება: IntelliJ-ში ნომერზე `Ctrl+Space`, ან [central.sonatype.com](https://central.sonatype.com).
 
-### 7.3 ცვლილების ჩატვირთვა
+### 7.4 ცვლილების ჩატვირთვა
 
-`build.gradle.kts`-ის შენახვის შემდეგ IntelliJ ზემოთ მარჯვნივ გამოიტანს **„Load Gradle Changes"** (ან სპილოს ხატულა Gradle-ის პანელში, ან `Ctrl+Shift+O`). პირველი ჩამოტვირთვა 1-2 წუთია.
+`build.gradle`-ის შენახვის შემდეგ IntelliJ ზემოთ მარჯვნივ გამოიტანს **„Load Gradle Changes"** (ან სპილოს ხატულა Gradle-ის პანელში, ან `Ctrl+Shift+O`). პირველი ჩამოტვირთვა 1-2 წუთია.
 
 შემოწმება:
 
@@ -170,11 +192,48 @@ Dependencies:  Spring Web, Spring Data JPA, Validation,
 ./gradlew dependencies --configuration runtimeClasspath | grep -i jjwt
 ```
 
-> ⚠️ **მოსალოდნელი შეცდომა:** პირველივე გაშვებაზე აპლიკაცია დაეცემა `Failed to configure a DataSource: 'url' attribute is not specified`. ეს **ნორმალურია** — Spring-მა JPA დაინახა და ბაზას ითხოვს. Neon-ის connection string-ის ჩასმის შემდეგ გაქრება.
+### 7.5 Neon-თან დაკავშირება — გავლილი ხაფანგები
+
+connection string libpq-ის ფორმატშია და JDBC-სთვის გარდაქმნას საჭიროებს:
+
+| წესი | |
+|---|---|
+| პრეფიქსი | `postgresql://` → `jdbc:postgresql://` |
+| user და password | URL-იდან ამოღებული, ცალკე property-ებში |
+| `channel_binding=require` | **იშლება** — libpq-ის პარამეტრია, JDBC ვერ ცნობს |
+| `sslmode=require` | **რჩება** — Neon SSL-ის გარეშე კავშირს არ დაუშვებს |
+| host | **direct, `-pooler`-ის გარეშე** |
+
+`-pooler`-ის უკან PgBouncer ზის transaction mode-ში, სადაც სესიის მდგომარეობა კავშირებს შორის არ ნარჩუნდება — Flyway კი მიგრაციისას session-level advisory lock-ს იღებს. HikariCP-ს ისედაც აქვს თავისი პული.
+
+**ორი შეცდომა, რომელიც რეალურად დაგვემართა:**
+
+1. `user:password` მთლიანად ჩაიწერა `username`-ში (ე.ი. პაროლი ორჯერ). სიმპტომი — `FATAL: password authentication failed`.
+2. host-ის დაბოლოება გაორმაგდა (`...neon.tech.eu-central-1.aws.neon.tech`). სიმპტომი — `PSQLException: ERROR: Endpoint ID is not specified`. `*.neon.tech` DNS-ში wildcard-ია, ამიტომ კავშირი proxy-მდე მიდის, მაგრამ SNI-ში წასულ სახელში Neon endpoint ID-ს ვერ პოულობს.
+
+დრაივერი **pgjdbc 42.7.11**-ია და SNI-ს სრულად უჭერს მხარს — Neon-ის დოკუმენტაციაში ნახსენები `options=endpoint%3D...` შემოვლითი გზა **არ გვჭირდება**.
 
 ---
 
-## 8. მონაცემთა სქემა — პირველი Flyway მიგრაციის ჩონჩხი
+## 8. მონაცემთა სქემა
+
+**რეალიზებულია და გაშვებულია:** `backend/src/main/resources/db/migration/V1__init.sql` (11 ცხრილი, 12 ინდექსი). ჭეშმარიტების წყარო ის ფაილია — ქვემოთ მოცემული ჩონჩხი მხოლოდ ორიენტირია.
+
+> ⚠️ **V1 გაყინულია.** მიგრაცია Neon-ზე შესრულდა 2026-08-20-ს (`Successfully applied 1 migration to schema "public", now at version v1`). Flyway-მ მისი checksum ბაზაში ჩაწერა — ფაილის ერთი სიმბოლოს შეცვლაც კი შემდეგ გაშვებას `Migration checksum mismatch`-ით ჩააგდებს. **სქემის ნებისმიერი ცვლილება ამიერიდან `V2__*.sql`-ია.**
+
+### 8.1 მიღებული გადაწყვეტილებები (2026-08-20)
+
+- **UUID პირველადი გასაღებები**, `gen_random_uuid()`-ით (PostgreSQL 13+, extension არ სჭირდება). `BIGSERIAL` უარყოფილია: თანმიმდევრული ID საჯარო URL-ში კონტენტის მოცულობას ამხელს.
+- **`VARCHAR` + `CHECK`, არა native `ENUM`.** მნიშვნელობის დამატება ერთხაზიანი `ALTER`-ია, წაშლა/გადარქმევა კი native enum-ში მტკივნეული; JPA-ც სტრიქონს დამატებითი კონფიგურაციის გარეშე ალაგებს.
+- **`TIMESTAMPTZ` ყველგან.**
+- **`ON DELETE` პოლიტიკა შეგნებულია და §4.4-ის წესებს აღასრულებს:**
+  - `questions.author_id` → **RESTRICT** — ავტორის კრედიტი გამოქვეყნებულ კითხვას ფეხქვეშ არ უნდა გამოეცალოს.
+  - `package_questions.question_id` → **RESTRICT** — სხვის პაკეტში მოხვედრილი კითხვა ვერ წაიშლება; გზა არის `ARCHIVED`.
+  - `session_answers.question_id` → **SET NULL** (სვეტი nullable-ია) — snapshot-ები ისედაც ინახავს ყველაფერს საჩვენებლად, ე.ი. ისტორია ხელუხლებელი რჩება.
+- **`users.is_blocked`** პირველივე მიგრაციაშია — §6-ის მაღაზიების მოთხოვნა.
+- ძებნის ინდექსი: `to_tsvector('simple', text)` GIN-ით. `'simple'` სწორია — PostgreSQL-ს ქართული ლექსიკონი არ მოყვება.
+
+### 8.2 ცხრილების ჩონჩხი
 
 ```
 users              (id, email, display_name, role, created_at)
@@ -200,8 +259,11 @@ reports            (id, reporter_id, question_id, reason, status, created_at)
 
 - საჯარო კატალოგის მოდერაციის დატვირთვა solo-დეველოპერისთვის — გადაწყდა „თავიდანვე საჯარო", მაგრამ პრაქტიკაში შეიძლება მოგვიწიოს რიგის შეზღუდვა ან ავტო-დამტკიცების წესები.
 - მონეტიზაციის მოდელი — არ განგვიხილავს.
-- Neon-ის ანგარიში ჯერ არ შექმნილა; connection string არ გვაქვს.
-- git რეპოზიტორი არ არის ინიციალიზებული. ეს საქაღალდე პერსონალურ ანგარიშზეა გამიზნული — იხ. `Desktop/Personal/.gitconfig_personal`.
+- ~~Neon-ის ანგარიში~~ — დახურულია, ბაზა მუშაობს (2026-08-20).
+- `springdoc-openapi`-ს Boot 4-თან თავსებადობა შეუმოწმებელია (იხ. §2.1).
+- Neon-ის უფასო ტარიფზე compute ~5 წუთის უმოქმედობის შემდეგ იძინებს — პირველი მოთხოვნა cold start-ის შემდეგ რამდენიმე წამია. HikariCP-ის timeout-ები ამის გათვალისწინებითაა (`connection-timeout=30000`).
+- `rootProject.name = 'backend'` vs `rsr` — გადარქმევა გადასაწყვეტია, სანამ კოდი დაიწერება.
+- git რეპოზიტორი ინიციალიზებულია (`Initial commit`), მაგრამ `backend/` ჯერ commit-ში არ არის. ეს საქაღალდე პერსონალურ ანგარიშზეა გამიზნული — იხ. `Desktop/Personal/.gitconfig_personal`.
 
 ---
 
